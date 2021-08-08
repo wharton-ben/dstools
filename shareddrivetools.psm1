@@ -18,39 +18,53 @@ function Get-ChildFolderACL
 	[OutputType([string])]
 	Param
 	(
-		# Param1 help description
 		[Parameter(Mandatory = $true,
 				   ValueFromPipeline = $true,
 				   ValueFromPipelineByPropertyName = $true,
 				   Position = 0)]
-		[string]$Path,
+		[string]$path,
 		[Parameter(Mandatory = $false)]
-		[string]$Match = "*"
+		[string]$match = "*"
 	)
 	
 	Begin
 	{
-		set-location $path
+		# To begin, the function will grab the user's current directory and save it to $current_location
+		$current_location = get-location
+		# The function will then set the user's location to the path specified in the $path parameter
+		try
+		{
+			set-location $path
+		}
+		catch
+		{
+			Write-Error "This path does not exist. Please verify the specified path is correct and try again."
+		}
 	}
 	Process
 	{
+		# Once the user is in the correct location, iterate over all child items within the parent.
 		foreach ($child in Get-ChildItem )
 		{
+			# Grab the name of the child folder from the object returned.
 			$child_item = $child.Name
-			
+			# Iterate over all items in the returned access list.
 			foreach ($acl in get-acl -path $child_item | select-object -ExpandProperty access)
 			{
+				# Check to see if any of the users/groups match the user's $match parameter input. If no input, the default is a wildcard.
 				if ($acl.identityreference -like "*$Match*")
 				{
+					# Each item will be run through the Get-ADGroup cmdlet to check who is listed as the manager for the file.
 					try
 					{
 						$owner = Get-ADGroup ([string]$acl.identityreference).Split("\")[1] -Properties managedby
 					}
+					# If the group does not have a manager listed, a message will be returned to the user stating so.
 					catch
 					{
 						Write-Warning "This group/member does not have a manager listed."
 					}
-					
+					# The manager and the name of the group will be written to the terminal for the user.
 					Write-Host "$($owner.managedby) $(([string]$acl.identityreference).Split("\")[1])"
 				}
 
@@ -60,7 +74,8 @@ function Get-ChildFolderACL
 	}
 	End
 	{
-		Write-host "`nComplete." -ForegroundColor Green
+		# Set the user's location back to their original location.
+		Set-Location $current_location
 	}
 }
 
